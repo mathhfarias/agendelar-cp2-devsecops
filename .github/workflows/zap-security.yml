@@ -1,4 +1,4 @@
-name: OWASP ZAP Security Scan
+name: CP2 DevSecOps com OWASP ZAP
 
 on:
   push:
@@ -10,6 +10,9 @@ on:
       - main
 
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   zap_scan:
@@ -26,21 +29,38 @@ jobs:
           node-version: 20
 
       - name: Instalar dependências
-        run: npm ci
-
-      - name: Iniciar aplicação local
-        run: |
-          npm start &
-          sleep 10
-          curl -I http://127.0.0.1:8080
+        run: npm install
 
       - name: Criar pasta de relatórios
         run: mkdir -p zap-reports
 
+      - name: Iniciar aplicação local
+        run: |
+          nohup npm start > app.log 2>&1 &
+          sleep 5
+
+      - name: Validar se aplicação está online
+        run: |
+          echo "Aguardando aplicação responder em http://127.0.0.1:8080"
+
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:8080 > /dev/null; then
+              echo "Aplicação online."
+              exit 0
+            fi
+
+            echo "Tentativa $i: aplicação ainda não respondeu..."
+            sleep 2
+          done
+
+          echo "A aplicação não respondeu dentro do tempo esperado."
+          cat app.log || true
+          exit 1
+
       - name: Executar OWASP ZAP Full Scan
         run: |
-          docker run --network host \
-            -v ${{ github.workspace }}/zap-reports:/zap/wrk/:rw \
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/zap-reports:/zap/wrk:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable \
             zap-full-scan.py \
             -t http://127.0.0.1:8080 \
@@ -50,6 +70,28 @@ jobs:
             -J zap-report.json \
             -x zap-report.xml \
             -I || true
+
+      - name: Listar arquivos gerados pelo ZAP
+        if: always()
+        run: |
+          echo "Arquivos dentro de zap-reports:"
+          ls -la zap-reports || true
+
+      - name: Copiar log da aplicação para evidência
+        if: always()
+        run: |
+          cp app.log zap-reports/app.log || true
+          touch zap-reports/.keep
+
+      - name: Validar se o relatório JSON foi gerado
+        run: |
+          if [ ! -f "zap-reports/zap-report.json" ]; then
+            echo "Relatório JSON do ZAP não foi encontrado."
+            echo "Verifique o step de execução do OWASP ZAP."
+            exit 1
+          fi
+
+          echo "Relatório JSON encontrado com sucesso."
 
       - name: Analisar relatório do OWASP ZAP
         run: node scripts/analyze-zap.js zap-reports/zap-report.json

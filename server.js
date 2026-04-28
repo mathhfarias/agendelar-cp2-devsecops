@@ -35,6 +35,9 @@ app.get("/", (req, res) => {
           <input type="text" name="q" placeholder="Ex: encanador, eletricista..." />
           <button type="submit">Buscar</button>
         </form>
+        <p>
+        <a href="/buscar?q=eletricista">Exemplo de busca vulnerável</a>
+        </p>
       </body>
     </html>
   `);
