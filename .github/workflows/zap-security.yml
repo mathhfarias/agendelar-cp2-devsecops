@@ -58,7 +58,7 @@ jobs:
           exit 1
 
             - name: Executar OWASP ZAP Baseline Scan
-        run: |
+            run: |
           docker run --rm --network host \
             -v "${{ github.workspace }}/zap-reports:/zap/wrk/:rw" \
             -t zaproxy/zap-stable \
@@ -68,7 +68,7 @@ jobs:
             -J zap-report.json \
             -x zap-report.xml \
             -I || true
-            
+
       - name: Listar arquivos gerados pelo ZAP
         if: always()
         run: |
