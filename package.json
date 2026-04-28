@@ -1,0 +1,16 @@
+{
+  "name": "agendelar-cp2-devsecops",
+  "version": "1.0.0",
+  "description": "Aplicação web para CP2 de DevSecOps com OWASP ZAP",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

@@ -1,0 +1,73 @@
+name: OWASP ZAP Security Scan
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  zap_scan:
+    name: Security Scan with OWASP ZAP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Iniciar aplicação local
+        run: |
+          npm start &
+          sleep 10
+          curl -I http://127.0.0.1:8080
+
+      - name: Criar pasta de relatórios
+        run: mkdir -p zap-reports
+
+      - name: Executar OWASP ZAP Full Scan
+        run: |
+          docker run --network host \
+            -v ${{ github.workspace }}/zap-reports:/zap/wrk/:rw \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+            -t http://127.0.0.1:8080 \
+            -m 1 \
+            -T 10 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -x zap-report.xml \
+            -I || true
+
+      - name: Analisar relatório do OWASP ZAP
+        run: node scripts/analyze-zap.js zap-reports/zap-report.json
+
+      - name: Salvar relatório como artefato
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-security-report
+          path: zap-reports/
+
+      - name: Falhar pipeline se houver vulnerabilidade Alta ou Crítica
+        run: |
+          if [ "${ZAP_HIGH:-0}" -gt 0 ] || [ "${ZAP_CRITICAL:-0}" -gt 0 ]; then
+            echo "Pipeline bloqueado: vulnerabilidades Altas ou Críticas foram encontradas."
+            echo "Vulnerabilidades Altas: ${ZAP_HIGH:-0}"
+            echo "Vulnerabilidades Críticas: ${ZAP_CRITICAL:-0}"
+            exit 1
+          else
+            echo "Nenhuma vulnerabilidade Alta ou Crítica encontrada."
+          fi
