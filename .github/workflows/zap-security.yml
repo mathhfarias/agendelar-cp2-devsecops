@@ -32,16 +32,18 @@ jobs:
         run: npm install
 
       - name: Criar pasta de relatórios
-        run: mkdir -p zap-reports
+        run: |
+          mkdir -p zap-reports
+          chmod 777 zap-reports
 
       - name: Iniciar aplicação local
         run: |
           nohup npm start > app.log 2>&1 &
-          sleep 5
+          sleep 8
 
       - name: Validar se aplicação está online
         run: |
-          echo "Aguardando aplicação responder em http://127.0.0.1:8080"
+          echo "Validando aplicação em http://127.0.0.1:8080"
 
           for i in {1..30}; do
             if curl -s http://127.0.0.1:8080 > /dev/null; then
@@ -53,43 +55,46 @@ jobs:
             sleep 2
           done
 
-          echo "A aplicação não respondeu dentro do tempo esperado."
+          echo "Aplicação não respondeu."
           cat app.log || true
           exit 1
 
-            - name: Executar OWASP ZAP Baseline Scan
-            run: |
+      - name: Executar OWASP ZAP Baseline Scan
+        run: |
           docker run --rm --network host \
             -v "${{ github.workspace }}/zap-reports:/zap/wrk/:rw" \
-            -t zaproxy/zap-stable \
-            zap-baseline.py \
-            -t http://127.0.0.1:8080 \
-            -r zap-report.html \
-            -J zap-report.json \
-            -x zap-report.xml \
-            -I || true
-
-      - name: Listar arquivos gerados pelo ZAP
-        if: always()
-        run: |
-          echo "Arquivos dentro de zap-reports:"
-          ls -la zap-reports || true
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            bash -c "zap-baseline.py \
+              -t http://127.0.0.1:8080 \
+              -r zap-report.html \
+              -J zap-report.json \
+              -x zap-report.xml \
+              -I || true"
 
       - name: Copiar log da aplicação para evidência
         if: always()
         run: |
           cp app.log zap-reports/app.log || true
-          touch zap-reports/.keep
 
-      - name: Validar se o relatório JSON foi gerado
+      - name: Listar arquivos gerados
+        if: always()
         run: |
-          if [ ! -f "zap-reports/zap-report.json" ]; then
-            echo "Relatório JSON do ZAP não foi encontrado."
-            echo "Verifique o step de execução do OWASP ZAP."
+          echo "Conteúdo da pasta zap-reports:"
+          ls -lah zap-reports || true
+
+      - name: Validar se os relatórios foram gerados
+        run: |
+          if [ ! -f "zap-reports/zap-report.html" ]; then
+            echo "Erro: zap-report.html não foi gerado."
             exit 1
           fi
 
-          echo "Relatório JSON encontrado com sucesso."
+          if [ ! -f "zap-reports/zap-report.json" ]; then
+            echo "Erro: zap-report.json não foi gerado."
+            exit 1
+          fi
+
+          echo "Relatórios do ZAP gerados com sucesso."
 
       - name: Analisar relatório do OWASP ZAP
         run: node scripts/analyze-zap.js zap-reports/zap-report.json
