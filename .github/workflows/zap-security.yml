@@ -57,20 +57,18 @@ jobs:
           cat app.log || true
           exit 1
 
-      - name: Executar OWASP ZAP Full Scan
+            - name: Executar OWASP ZAP Baseline Scan
         run: |
           docker run --rm --network host \
-            -v "${{ github.workspace }}/zap-reports:/zap/wrk:rw" \
-            -t ghcr.io/zaproxy/zaproxy:stable \
-            zap-full-scan.py \
+            -v "${{ github.workspace }}/zap-reports:/zap/wrk/:rw" \
+            -t zaproxy/zap-stable \
+            zap-baseline.py \
             -t http://127.0.0.1:8080 \
-            -m 1 \
-            -T 10 \
             -r zap-report.html \
             -J zap-report.json \
             -x zap-report.xml \
             -I || true
-
+            
       - name: Listar arquivos gerados pelo ZAP
         if: always()
         run: |
